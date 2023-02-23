@@ -1,1 +1,5 @@
 **/__pycache__
+
+# ignore changes to the helper file so I don't leak my password :D
+/env.sh
+
