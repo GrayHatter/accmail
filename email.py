@@ -7,7 +7,9 @@ MID = re.compile(r"^(\d+) ", re.I)
 EMAIL = re.compile(r"([^\s\"<]+@gr.ht)>?", re.I)
 TO = re.compile(r"\r\nTo:(.+?)\r\n", re.I)
 FROM = re.compile(r"\r\nFrom:(.+?)\r\n", re.I)
-to_domain_re = r"([^\s\"<]+@" + os.getenv("ACCMAIL_DOMAIN", "") + r")>?"
+LIST_A = re.compile(r"\r\nList-Archive:(.+?)\r\n", re.I)
+LIST_ID = re.compile(r"\r\nList-Id:(.+?)\r\n", re.I)
+to_domain_re = r"([^\s\"<]+@" + os.getenv("ACCMAIL_DOMAIN", "example.com") + r")>?"
 TO_DOMAIN = re.compile(to_domain_re, re.I)
 
 
@@ -22,6 +24,9 @@ class Message():
         self.H = self.headers = {}
         self.parse()
 
+    def __repr__(self):
+        return f"Message<From: { self.to }, To: { self.from_ }, List: { self.list_archive }>"
+
     def parse(self):
         if not all([
             self.imap,
@@ -32,18 +37,41 @@ class Message():
 
         match = UID.search(self._blob)
         if match:
-            self.uid = match.group(1)
+            self.uid = match.group(1).strip()
 
         match = MID.search(self._blob)
         if match:
-            self.mid = match.group(1)
+            self.mid = match.group(1).strip()
 
         match = TO.search(self._blob)
         if match:
-            self.to = self._orig_to = match.group(1)
+            self.to = self._orig_to = match.group(1).strip()
             match = TO_DOMAIN.search(self.to)
             if match:
-                self.to = match.group(1).lower()
+                self.to = match.group(1).lower().strip()
+
+        match = FROM.search(self._blob)
+        if match:
+            self.from_ = match.group(1).strip()
+        else:
+            self.from_ = "Empty"
+
+        match = LIST_A.search(self._blob)
+        if match:
+            self.list_archive = match.group(1).strip()
+        else:
+            self.list_archive = "Empty"
+
+        match = LIST_ID.search(self._blob)
+        if match:
+            self.list_id_full = match.group(1).strip()
+            smatch = re.search(r"(.+/.+) ", self.list_id_full)
+            if smatch:
+                self.list_id = smatch.group(1).strip()
+            else:
+                self.list_id = self.list_id_full
+        else:
+            self.list_id_full = self.list_id = "Empty"
 
     def _FETCH(self, field):
         self.imap.select(self.mailbox)

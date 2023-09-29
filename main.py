@@ -4,6 +4,8 @@ import os
 import sieve
 import email
 
+DEBUG = True
+
 
 def data_to_msg(conn, mailbox, data):
     folder = []
@@ -18,10 +20,16 @@ def data_to_msg(conn, mailbox, data):
         collect += list(each)
     return folder
 
+def my_domain(t, domain=None):
+    if domain is None:
+        domain = os.getenv('ACCMAIL_DOMAIN');
+    return domain in t
 
 def main():
     moves = {}
+    lists = {}
     autodrops = []
+    unknowns = set()
 
     with imaplib.IMAP4_SSL(os.environ["ACCMAIL_HOST"]) as conn:
         conn.login(os.getenv("ACCMAIL_USER", ""), os.getenv("ACCMAIL_PASS", ""))
@@ -40,7 +48,7 @@ def main():
             "junk": [],
         }
 
-        DEF_SEARCH = "(UID BODY[HEADER.FIELDS (TO FROM)])"
+        DEF_SEARCH = "(UID BODY[HEADER.FIELDS (TO FROM LIST-ARCHIVE LIST-ID)])"
 
         for folder in f_folders:
             conn.select(folder, True)
@@ -51,8 +59,14 @@ def main():
             f_folders[folder] = data_to_msg(conn, folder, data)
 
             for each in sorted(set([m.to for m in f_folders[folder]])):
-                if f"@{os.getenv('ACCMAIL_DOMAIN')}" in each:
+                if my_domain(each):
                     moves[each] = folder
+                else:
+                    unknowns.add(each)
+
+            for each in sorted(set([m for m in f_folders[folder]]), key=lambda x: x.to):
+                if each.list_archive != "Empty" and not my_domain(each.to):
+                    lists[each.list_archive] = folder
 
         for folder in folders:
             conn.select(folder, True)
@@ -80,8 +94,24 @@ def main():
         for folder, msgs in folders.items():
             for m in msgs:
                 if m.to in moves and moves[m.to] != folder:
-                    m.move(moves[m.to])
-            res, data = conn.expunge()
+                    # m.move(moves[m.to])
+                    pass
+                elif f"@{os.getenv('ACCMAIL_DOMAIN')}" in m.to:
+                    unknowns.add(m.to)
+            # res, data = conn.expunge()
+
+        if DEBUG:
+            for each in moves:
+                print(f"Known Email: {each}")
+            for each, fold in lists.items():
+                print(f"Known list: {each}, {fold}")
+            for each in unknowns:
+                print(f"Unknowns: {each}")
+            for ms in list(f_folders.values()) + list(folders.values()):
+                for m in ms:
+                    if m.list_archive == "Empty":
+                        continue
+                    print(m, m.list_id, m.list_id_full)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,8 @@ drop_directives = """
 """
 
 custom_directives = """
-
-
+} elsif address :regex "to" [".*[0-9]+.*@gr.ht", "[grhtGRHT]{2,}@gr.ht"] {
+    fileinto "junk";
 """
 
 
